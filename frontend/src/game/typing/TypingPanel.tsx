@@ -100,11 +100,13 @@ function Passage({ text, prog, cursor, reducedMotion }: { text: string; prog: nu
 export function TypingPanel({
   race,
   reducedMotion,
-  active
+  active,
+  keyboardOpen = true
 }: {
   race: RaceController;
   reducedMotion: boolean;
   active: boolean;
+  keyboardOpen?: boolean;
 }) {
   useSyncExternalStore(race.subscribe.bind(race), () => race.version);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -113,6 +115,28 @@ export function TypingPanel({
   const [focused, setFocused] = useState(false);
   const [flash, setFlash] = useState(0);
   const [pasteWarn, setPasteWarn] = useState(false);
+
+  const isTouchDevice = useMemo(() => typeof window !== 'undefined' && matchMedia('(pointer: coarse)').matches, []);
+  const isEffectivelyFocused = isTouchDevice ? (focused && keyboardOpen) : focused;
+
+  const focusInput = useCallback(() => {
+    sound.unlock();
+    const el = inputRef.current;
+    if (!el) return;
+    // On mobile devices, when the user scrolls or dismisses the virtual keyboard,
+    // the OS hides the keyboard while document.activeElement might still remain on
+    // this input. Blurring first ensures calling focus() creates a genuine user-activation
+    // focus transition that reliably re-summons the software keyboard.
+    if (document.activeElement === el) {
+      el.blur();
+    }
+    try {
+      el.focus({ preventScroll: true });
+    } catch {
+      el.focus();
+    }
+    setFocused(true);
+  }, []);
 
   const typing = race.typing;
   const prog = progress(typing);
@@ -197,10 +221,11 @@ export function TypingPanel({
 
   return (
     <div
-      className={`typing-panel ${focused ? 'focused' : ''} ${typing.firstError !== -1 ? 'has-error' : ''}`}
-      onPointerDown={() => {
-        sound.unlock();
-        setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0);
+      className={`typing-panel ${isEffectivelyFocused ? 'focused' : ''} ${typing.firstError !== -1 ? 'has-error' : ''}`}
+      onClick={(e) => {
+        const target = e.target as HTMLElement | null;
+        if (target && /^(BUTTON|A|INPUT)$/.test(target.tagName)) return;
+        focusInput();
       }}
     >
       <div className="typing-head">
@@ -213,10 +238,17 @@ export function TypingPanel({
       <div className="passage-wrap">
         {flash > 0 && <span key={flash} className="error-flash" aria-hidden />}
         <Passage text={race.text} prog={prog} cursor={cursor} reducedMotion={reducedMotion} />
-        {!focused && active && !race.finished && (
-          <div className="focus-hint">
-            <span>{matchMedia('(pointer: coarse)').matches ? 'Tap here to type' : 'Click here or press any key to type'}</span>
-          </div>
+        {!isEffectivelyFocused && active && !race.finished && (
+          <label
+            htmlFor="race-typing-input"
+            className="focus-hint"
+            onClick={(e) => {
+              e.stopPropagation();
+              focusInput();
+            }}
+          >
+            <span>{isTouchDevice ? 'Tap here to type' : 'Click here or press any key to type'}</span>
+          </label>
         )}
       </div>
       <div className="typing-foot">
@@ -227,10 +259,11 @@ export function TypingPanel({
         ) : pasteWarn ? (
           <span className="badge">Pasting is disabled</span>
         ) : (
-          <span className="muted small">{focused ? 'Typing…' : 'Input not focused'}</span>
+          <span className="muted small">{isEffectivelyFocused ? 'Typing…' : 'Input not focused'}</span>
         )}
       </div>
       <input
+        id="race-typing-input"
         ref={inputRef}
         className="typing-input"
         aria-label="Type the passage here"

@@ -179,7 +179,7 @@ export function RaceScreen({
       </section>
 
       <section className="type-col" aria-label="Typing">
-        <TypingPanel race={race} reducedMotion={reducedMotion} active={!race.paused && !race.finished} />
+        <TypingPanel race={race} reducedMotion={reducedMotion} active={!race.paused && !race.finished} keyboardOpen={keyboardOpen} />
       </section>
 
       {race.paused && (
