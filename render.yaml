@@ -1,0 +1,23 @@
+# Render Blueprint: one Node web service that serves the API, Socket.IO
+# and the built frontend from the same origin.
+services:
+  - type: web
+    name: keyrush
+    runtime: node
+    plan: free
+    # Dev dependencies (Vite, esbuild, TypeScript) are needed to build.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.12.0
+      # Relative to backend/, where `npm start` runs.
+      - key: STATIC_DIR
+        value: ../frontend/dist
+      # Optional: add MONGODB_URI in the Render dashboard for persistent history.
+      - key: MONGODB_URI
+        sync: false
